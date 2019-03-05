@@ -101,4 +101,39 @@ static UIImage *RestoreUIImageOrientation(UIImage *processed, UIImage *original)
 	return RestoreUIImageOrientation(grayImage, image);
 }
 
++ (CGRect)calculateDiffFrom:(nonnull UIImage *)image to:(nonnull UIImage *)baseImage {
+    cv::Mat imageMat;
+    cv::Mat baseImageMat;
+    
+    UIImageToMat(image, imageMat);
+    UIImageToMat(baseImage, baseImageMat);
+    
+    cv::Mat grayImageMat;
+    cv::Mat grayBaseImageMat;
+
+    cv::cvtColor(imageMat, grayImageMat, CV_BGR2GRAY);
+    cv::cvtColor(baseImageMat, grayBaseImageMat, CV_BGR2GRAY);
+    
+    cv::Mat blurImageMat;
+    cv::Mat blurBaseImageMat;
+    
+    cv::GaussianBlur(grayImageMat, blurImageMat, cv::Size(21,21), 0);
+    cv::GaussianBlur(grayBaseImageMat, blurBaseImageMat, cv::Size(21,21), 0);
+    
+    cv::Mat frameDelta;
+    cv::absdiff(blurImageMat, blurBaseImageMat, frameDelta);
+    
+    cv::Mat threshold;
+    cv::threshold(frameDelta, threshold, 25, 255, cv::THRESH_BINARY);
+    
+    cv::Mat dilate;
+    cv::dilate(threshold, dilate, NULL, cv::Point(-1,-1), 2);
+    
+    cv::Rect rect = cv::boundingRect(dilate);
+
+    return CGRectMake(rect.x, rect.y, rect.width, rect.height);
+
+}
+
+
 @end

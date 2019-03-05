@@ -16,6 +16,8 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 	var session: AVCaptureSession!
 	var device: AVCaptureDevice!
 	var output: AVCaptureVideoDataOutput!
+    
+    var lastFrame: UIImage?
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -79,12 +81,27 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 		CVPixelBufferUnlockBaseAddress(buffer, CVPixelBufferLockFlags.readOnly)
 		
 		// This is a filtering sample.
-		let resultImage = OpenCV.cvtColorBGR2GRAY(capturedImage)
+        if self.lastFrame == nil {
+            self.lastFrame = capturedImage
+            return
+        }
+        
+        let diffRect = OpenCV.calculateDiff(from: capturedImage, to: self.lastFrame!)
+        self.lastFrame = capturedImage
 
 		// Show the result.
 		DispatchQueue.main.async(execute: {
-			self.imageView.image = resultImage
+			self.imageView.image = capturedImage
+            self.targetView.frame = diffRect
 		})
 	}
+    
+    lazy var targetView: UIImageView = {
+        let view = UIImageView()
+        view.layer.borderColor = UIColor.red.cgColor
+        view.layer.borderWidth = 1
+        self.view.addSubview(view)
+        return view
+    }()
 }
 

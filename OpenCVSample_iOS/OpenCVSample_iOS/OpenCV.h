@@ -13,4 +13,7 @@
 /// Converts a full color image to grayscale image with using OpenCV.
 + (nonnull UIImage *)cvtColorBGR2GRAY:(nonnull UIImage *)image;
 
+/// Converts a full color image to grayscale image with using OpenCV.
++ (CGRect)calculateDiffFrom:(nonnull UIImage *)image to:(nonnull UIImage *)baseImage;
+
 @end
