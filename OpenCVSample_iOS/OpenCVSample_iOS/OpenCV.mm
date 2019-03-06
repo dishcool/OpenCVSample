@@ -21,8 +21,8 @@ static void UIImageToMat(UIImage *image, cv::Mat &mat) {
 	assert(image.CGImage != nil || image.CIImage != nil);
 
 	// Create a pixel buffer.
-	NSInteger width = image.size.width;
-	NSInteger height = image.size.height;
+	NSInteger width = image.size.width / 2;
+	NSInteger height = image.size.height / 2;
 	cv::Mat mat8uc4 = cv::Mat((int)height, (int)width, CV_8UC4);
 
 	// Draw all pixels to the buffer.
@@ -49,6 +49,47 @@ static void UIImageToMat(UIImage *image, cv::Mat &mat) {
 	
 	mat = mat8uc3;
 }
+
+/// Converts an UIImage to Mat.
+/// Orientation of UIImage will be lost.
+static void UIImageTo16Mat(UIImage *image, NSMutableArray *imageArray) {
+    assert(image.size.width > 0 && image.size.height);
+    assert(image.CGImage != nil || image.CIImage != nil);
+    
+    // Create a pixel buffer.
+    NSInteger width = image.size.width / 4;
+    NSInteger height = image.size.height / 4;
+    cv::Mat mat8uc4 = cv::Mat((int)height, (int)width, CV_8UC4);
+    
+    // Draw all pixels to the buffer.
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    if (image.CGImage) {
+        // Render with using Core Graphics.
+        CGContextRef contextRef = CGBitmapContextCreate(mat8uc4.data, mat8uc4.cols, mat8uc4.rows, 8, mat8uc4.step, colorSpace, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrderDefault);
+        CGContextDrawImage(contextRef, CGRectMake(0, 0, width, height), image.CGImage);
+        CGContextRelease(contextRef);
+    } else {
+        // Render with using Core Image.
+        static CIContext* context = nil; // I do not like this declaration contains 'static'. But it is for performance.
+        if (!context) {
+            context = [CIContext contextWithOptions:@{ kCIContextUseSoftwareRenderer: @NO }];
+        }
+        
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                CGRect bounds = CGRectMake(i * width, j * height, width, height);
+                [context render:image.CIImage toBitmap:mat8uc4.data rowBytes:mat8uc4.step bounds:bounds format:kCIFormatRGBA8 colorSpace:colorSpace];
+                
+                cv::Mat mat8uc3 = cv::Mat((int)width, (int)height, CV_8UC3);
+                cv::cvtColor(mat8uc4, mat8uc3, CV_RGBA2BGR);
+                UIImage *image = MatToUIImage(mat8uc3);
+                imageArray[i * 4 + j] = image;
+            }
+        }
+    }
+    CGColorSpaceRelease(colorSpace);
+}
+
 
 /// Converts a Mat to UIImage.
 static UIImage *MatToUIImage(cv::Mat &mat) {
@@ -99,6 +140,12 @@ static UIImage *RestoreUIImageOrientation(UIImage *processed, UIImage *original)
 	cv::cvtColor(bgrMat, grayMat, CV_BGR2GRAY);
 	UIImage *grayImage = MatToUIImage(grayMat);
 	return RestoreUIImageOrientation(grayImage, image);
+}
+
++ (NSArray<UIImage *> *)cvtColorBGR2Array:(nonnull UIImage *)image {
+    NSMutableArray *array = [NSMutableArray new];
+    UIImageTo16Mat(image, array);
+    return array;
 }
 
 + (CGRect)calculateDiffFrom:(nonnull UIImage *)image to:(nonnull UIImage *)baseImage {

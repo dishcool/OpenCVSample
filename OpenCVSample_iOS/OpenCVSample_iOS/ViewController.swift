@@ -21,6 +21,8 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
+        
+        imageView.contentMode = .top
 		
 		// Prepare a video capturing session.
 		self.session = AVCaptureSession()
@@ -86,6 +88,23 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             return
         }
         
+        //(0)
+//        let array = OpenCV.cvtColorBGR2Array(capturedImage)
+        // Show the result.
+        DispatchQueue.main.async(execute: {
+            self.imageView.image = capturedImage
+        })
+        return
+        
+        //(1)
+        let grayImage = OpenCV.cvtColorBGR2GRAY(capturedImage)
+        // Show the result.
+        DispatchQueue.main.async(execute: {
+            self.imageView.image = grayImage
+        })
+        return
+        
+        //(2)
         let diffRect = OpenCV.calculateDiff(from: capturedImage, to: self.lastFrame!)
         self.lastFrame = capturedImage
 
