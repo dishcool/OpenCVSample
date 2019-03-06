@@ -10,20 +10,21 @@ import UIKit
 import AVFoundation
 
 class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
-	
-	@IBOutlet weak var imageView: UIImageView!
-	
+		
 	var session: AVCaptureSession!
 	var device: AVCaptureDevice!
 	var output: AVCaptureVideoDataOutput!
     
+    var imageArray: NSMutableArray = NSMutableArray()
+
     var lastFrame: UIImage?
-	
+    var splitCount: Int = 8
+
 	override func viewDidLoad() {
 		super.viewDidLoad()
         
-        imageView.contentMode = .top
-		
+        self.setupImageViews()
+        
 		// Prepare a video capturing session.
 		self.session = AVCaptureSession()
 		self.session.sessionPreset = AVCaptureSession.Preset.vga640x480 // not work in iOS simulator
@@ -52,7 +53,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 		}
 		do {
 			try self.device.lockForConfiguration()
-			self.device.activeVideoMinFrameDuration = CMTimeMake(value: 1, timescale: 20) // 20 fps
+			self.device.activeVideoMinFrameDuration = CMTimeMake(value: 1, timescale: 5) // 20 fps
 			self.device.unlockForConfiguration()
 		} catch {
 			print("could not configure a device")
@@ -81,46 +82,54 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 		let image = CIImage(cvPixelBuffer: buffer).oriented(CGImagePropertyOrientation.right)
 		let capturedImage = UIImage(ciImage: image)
 		CVPixelBufferUnlockBaseAddress(buffer, CVPixelBufferLockFlags.readOnly)
-		
-		// This is a filtering sample.
-        if self.lastFrame == nil {
-            self.lastFrame = capturedImage
-            return
+        
+        if self.lastFrame != nil {
+            let array = OpenCV.calculateDiffArray(from: capturedImage, to: lastFrame!, splitCount: Int32(self.splitCount))
+            // Show the result.
+            DispatchQueue.main.async(execute: {
+                self.displayView.image = capturedImage
+                for i in 0...self.imageArray.count - 1 {
+                    let imageView = self.imageArray[i] as! UIImageView
+                    let alpha : CGFloat = CGFloat(array![i].floatValue)
+                    imageView.alpha = alpha
+                }
+            })
         }
         
-        //(0)
-//        let array = OpenCV.cvtColorBGR2Array(capturedImage)
-        // Show the result.
-        DispatchQueue.main.async(execute: {
-            self.imageView.image = capturedImage
-        })
-        return
-        
-        //(1)
-        let grayImage = OpenCV.cvtColorBGR2GRAY(capturedImage)
-        // Show the result.
-        DispatchQueue.main.async(execute: {
-            self.imageView.image = grayImage
-        })
-        return
-        
-        //(2)
-        let diffRect = OpenCV.calculateDiff(from: capturedImage, to: self.lastFrame!)
         self.lastFrame = capturedImage
-
-		// Show the result.
-		DispatchQueue.main.async(execute: {
-			self.imageView.image = capturedImage
-            self.targetView.frame = diffRect
-		})
 	}
     
-    lazy var targetView: UIImageView = {
-        let view = UIImageView()
-        view.layer.borderColor = UIColor.red.cgColor
-        view.layer.borderWidth = 1
+    lazy var displayView: UIImageView = {
+        let rect = self.view.bounds
+        let width : CGFloat = rect.size.width
+        let height : CGFloat = width / 48.0 * 64.0
+
+        let view = UIImageView(frame: CGRect.init(x: 0, y: 0, width: width, height: height))
         self.view.addSubview(view)
+        self.view.sendSubviewToBack(view)
         return view
     }()
+    
+    func setupImageViews() {
+        let n : Int = self.splitCount
+        let rect = self.view.bounds
+        
+        let width : CGFloat = rect.size.width / CGFloat(n)
+        let height : CGFloat = width / 48.0 * 64.0
+
+        for i in 0...(n-1) {
+            for j in 0...(n-1) {
+                let imageView = UIImageView.init(frame: CGRect.init(x: CGFloat(i) * width, y: CGFloat((n-1-j)) * height, width: width, height: height))
+                imageView.contentMode = .scaleAspectFill
+                imageView.clipsToBounds = true
+                imageView.layer.borderColor = UIColor.red.cgColor
+                imageView.layer.borderWidth = 1
+                imageView.backgroundColor = UIColor.orange
+
+                self.view.addSubview(imageView)
+                self.imageArray.add(imageView)
+            }
+        }
+    }
 }
 

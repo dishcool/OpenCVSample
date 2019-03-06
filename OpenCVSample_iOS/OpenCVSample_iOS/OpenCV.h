@@ -14,9 +14,12 @@
 + (nonnull UIImage *)cvtColorBGR2GRAY:(nonnull UIImage *)image;
 
 /// Converts a full color image to grayscale image with using OpenCV.
-+ (nonnull NSArray<UIImage *> *)cvtColorBGR2Array:(nonnull UIImage *)image;
++ (NSArray<UIImage *> *_Nullable)cvtColorBGR2Array:(nonnull UIImage *)image splitCount:(int)count;
 
 /// Converts a full color image to grayscale image with using OpenCV.
 + (CGRect)calculateDiffFrom:(nonnull UIImage *)image to:(nonnull UIImage *)baseImage;
+
+/// Converts a full color image to grayscale image with using OpenCV.
++ (NSArray<NSNumber *> *_Nullable)calculateDiffArrayFrom:(nonnull UIImage *)image to:(nonnull UIImage *)baseImage splitCount:(int)count ;
 
 @end

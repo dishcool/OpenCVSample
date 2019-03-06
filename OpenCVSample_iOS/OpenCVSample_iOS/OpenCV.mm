@@ -52,13 +52,13 @@ static void UIImageToMat(UIImage *image, cv::Mat &mat) {
 
 /// Converts an UIImage to Mat.
 /// Orientation of UIImage will be lost.
-static void UIImageTo16Mat(UIImage *image, NSMutableArray *imageArray) {
+static void UIImageToNMat(UIImage *image, std::vector<cv::Mat> &images, int n) {
     assert(image.size.width > 0 && image.size.height);
     assert(image.CGImage != nil || image.CIImage != nil);
     
     // Create a pixel buffer.
-    NSInteger width = image.size.width / 4;
-    NSInteger height = image.size.height / 4;
+    NSInteger width = image.size.width / n;
+    NSInteger height = image.size.height / n;
     cv::Mat mat8uc4 = cv::Mat((int)height, (int)width, CV_8UC4);
     
     // Draw all pixels to the buffer.
@@ -75,15 +75,15 @@ static void UIImageTo16Mat(UIImage *image, NSMutableArray *imageArray) {
             context = [CIContext contextWithOptions:@{ kCIContextUseSoftwareRenderer: @NO }];
         }
         
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
                 CGRect bounds = CGRectMake(i * width, j * height, width, height);
                 [context render:image.CIImage toBitmap:mat8uc4.data rowBytes:mat8uc4.step bounds:bounds format:kCIFormatRGBA8 colorSpace:colorSpace];
                 
-                cv::Mat mat8uc3 = cv::Mat((int)width, (int)height, CV_8UC3);
-                cv::cvtColor(mat8uc4, mat8uc3, CV_RGBA2BGR);
-                UIImage *image = MatToUIImage(mat8uc3);
-                imageArray[i * 4 + j] = image;
+                cv::Mat mat = cv::Mat((int)width, (int)height, CV_8UC3);
+                cv::cvtColor(mat8uc4, mat, CV_RGBA2BGR);
+                
+                images.push_back(mat);
             }
         }
     }
@@ -142,9 +142,16 @@ static UIImage *RestoreUIImageOrientation(UIImage *processed, UIImage *original)
 	return RestoreUIImageOrientation(grayImage, image);
 }
 
-+ (NSArray<UIImage *> *)cvtColorBGR2Array:(nonnull UIImage *)image {
++ (NSArray<UIImage *> *)cvtColorBGR2Array:(nonnull UIImage *)image splitCount:(int)count {
+    std::vector<cv::Mat> images;
+    UIImageToNMat(image, images, count);
     NSMutableArray *array = [NSMutableArray new];
-    UIImageTo16Mat(image, array);
+
+    for (int i = 0; i < images.size(); i++) {
+        UIImage *image = MatToUIImage(images.at(i));
+        [array addObject:image];
+    }
+
     return array;
 }
 
@@ -180,6 +187,54 @@ static UIImage *RestoreUIImageOrientation(UIImage *processed, UIImage *original)
 
     return CGRectMake(rect.x, rect.y, rect.width, rect.height);
 
+}
+
+/// Converts a full color image to grayscale image with using OpenCV.
++ (NSArray<NSNumber *> *_Nullable)calculateDiffArrayFrom:(nonnull UIImage *)image to:(nonnull UIImage *)baseImage  splitCount:(int)count {
+    
+    CGFloat width = image.size.width / count;
+    CGFloat height = image.size.height / count;
+    
+    std::vector<cv::Mat> images;
+    std::vector<cv::Mat> baseImages;
+    UIImageToNMat(image, images, count);
+    UIImageToNMat(baseImage, baseImages, count);
+    
+    NSMutableArray *result = [NSMutableArray new];
+    
+    for (int i = 0; i < count * count; i++) {
+        cv::Mat imageMat = images.at(i);
+        cv::Mat baseImageMat = baseImages.at(i);
+        
+        cv::Mat grayImageMat;
+        cv::Mat grayBaseImageMat;
+        
+        cv::cvtColor(imageMat, grayImageMat, CV_BGR2GRAY);
+        cv::cvtColor(baseImageMat, grayBaseImageMat, CV_BGR2GRAY);
+        
+        cv::Mat blurImageMat;
+        cv::Mat blurBaseImageMat;
+        
+        cv::GaussianBlur(grayImageMat, blurImageMat, cv::Size(21,21), 0);
+        cv::GaussianBlur(grayBaseImageMat, blurBaseImageMat, cv::Size(21,21), 0);
+        
+        cv::Mat frameDelta;
+        cv::absdiff(blurImageMat, blurBaseImageMat, frameDelta);
+        
+        cv::Mat threshold;
+        cv::threshold(frameDelta, threshold, 25, 255, cv::THRESH_BINARY);
+        
+        cv::Mat dilate;
+        cv::dilate(threshold, dilate, NULL, cv::Point(-1,-1), 2);
+        
+        cv::Rect rect = cv::boundingRect(dilate);
+        
+        
+        NSNumber *alpha = @(rect.width * rect.height / (width * height));
+        [result addObject:alpha];
+    }
+
+    return result;
 }
 
 
